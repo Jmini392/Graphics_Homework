@@ -39,6 +39,7 @@ struct Shape {
 	GLuint VAO, VBO[2], EBO;
 };
 Shape robot[7]; // 0 머리, 1 몸통, 2 왼팔, 3 오른팔, 4 왼다리, 5 오른다리, 6 코
+Shape box; // 로봇 미니맵 위치 상자
 glm::mat4 robot_animation[2]; glm::mat4 robot_movement;
 bool movemotion; bool robot_rotate = true;
 float robot_speed = 0.05f; bool robot_on = false;
@@ -265,43 +266,56 @@ void Create_Cube(Shape& cube, float x, float y, float z) {
 		// 왼면
 		20, 21, 22, 20, 22, 23
 	};
-	cube.colors = {
-		// 앞면 - 연한회색
-		0.8f, 0.8f, 0.8f,
-		0.8f, 0.8f, 0.8f,
-		0.8f, 0.8f, 0.8f,
-		0.8f, 0.8f, 0.8f,
+	if (x <= 0.3f) {
+		cube.colors = {
+			1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+			1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+			1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+			1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+			1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+			1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f
+		};
+	}
+	else {
+		cube.colors = {
+			// 앞면 - 연한회색
+			0.8f, 0.8f, 0.8f,
+			0.8f, 0.8f, 0.8f,
+			0.8f, 0.8f, 0.8f,
+			0.8f, 0.8f, 0.8f,
 
-		// 뒷면 - 연한 회색
-		0.8f, 0.8f, 0.8f,
-		0.8f, 0.8f, 0.8f,
-		0.8f, 0.8f, 0.8f,
-		0.8f, 0.8f, 0.8f,
+			// 뒷면 - 연한 회색
+			0.8f, 0.8f, 0.8f,
+			0.8f, 0.8f, 0.8f,
+			0.8f, 0.8f, 0.8f,
+			0.8f, 0.8f, 0.8f,
 
-		// 아랫면 - 진한 회색
-		0.3f, 0.3f, 0.3f,
-		0.3f, 0.3f, 0.3f,
-		0.3f, 0.3f, 0.3f,
-		0.3f, 0.3f, 0.3f,
+			// 아랫면 - 진한 회색
+			0.3f, 0.3f, 0.3f,
+			0.3f, 0.3f, 0.3f,
+			0.3f, 0.3f, 0.3f,
+			0.3f, 0.3f, 0.3f,
 
-		// 윗면 - 진한 회색
-		0.3f, 0.3f, 0.3f,
-		0.3f, 0.3f, 0.3f,
-		0.3f, 0.3f, 0.3f,
-		0.3f, 0.3f, 0.3f,
+			// 윗면 - 진한 회색
+			0.3f, 0.3f, 0.3f,
+			0.3f, 0.3f, 0.3f,
+			0.3f, 0.3f, 0.3f,
+			0.3f, 0.3f, 0.3f,
 
-		// 오른면 - 회색
-		0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f,
+			// 오른면 - 회색
+			0.5f, 0.5f, 0.5f,
+			0.5f, 0.5f, 0.5f,
+			0.5f, 0.5f, 0.5f,
+			0.5f, 0.5f, 0.5f,
 
-		// 왼면 - 파란색
-		0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f,
-		0.5f, 0.5f, 0.5f
-	};
+			// 왼면 - 파란색
+			0.5f, 0.5f, 0.5f,
+			0.5f, 0.5f, 0.5f,
+			0.5f, 0.5f, 0.5f,
+			0.5f, 0.5f, 0.5f
+		};
+	}
+	
 	InitBuffers(cube);
 }
 
@@ -390,106 +404,83 @@ void Wall_Animation() {
 
 // 미로 생성 함수
 void Create_Maze() {
-	// 함수 내부에서만 사용할 변수들
-	int rows = static_cast<int>(Maze.size());
-	int cols = static_cast<int>(Maze[0].size());
-
-	// --- [수정 1] 미로 셀 그리드 관련 변수 및 구조체 제거 (Maze 배열을 직접 사용) ---
-	// Maze 배열의 크기인 25x25를 그대로 활용하며, 방문 기록을 위한 별도 배열을 정의합니다.
-	std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
-
-	// 재귀 백트래킹을 위한 스택 (함수 내부 변수)
-	std::vector<std::pair<int, int>> stack;
-
-	// 방향 정의 (2칸씩 점프하는 방식 사용)
-	// 이 방식은 홀수 인덱스의 셀에서 홀수 인덱스의 셀로 이동하며 벽(짝수 인덱스)을 허뭅니다.
-	int dx[] = { 0, 2, 0, -2 }; // 북, 동, 남, 서 (2칸 점프)
-	int dy[] = { -2, 0, 2, 0 };
-
 	// 모든 셀을 벽으로 초기화
-	for (int i = 0; i < rows; i++) {
-		for (int j = 0; j < cols; j++) {
-			Maze[i][j].is_way = false; // 벽으로 설정 (0)
+	for (int i = 0; i < Maze.size(); i++) {
+		for (int j = 0; j < Maze[0].size(); j++) {
+			Maze[i][j].is_way = false; // 벽으로 설정
 		}
 	}
-
-	// 재귀 백트래킹 알고리즘 시작 - 시작점을 (1, 1)로 설정
-	// 25x25의 미로를 최대한 채우기 위해 내부의 첫 번째 셀 (1, 1)에서 시작
-	int start_x = 1;
-	int start_y = 1;
-
+	// 시작점과 출구 설정
+	Maze[0][0].is_way = true;
+	Maze[1][0].is_way = true;
+	// 행 및 열 크기
+	int rows = static_cast<int>(Maze.size());
+	int cols = static_cast<int>(Maze[0].size());
+	// Maze 배열의 크기 그대로 활용하며, 방문 기록을 위한 별도 배열을 정의합니다.
+	std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
+	// 재귀 백트래킹을 위한 스택 (함수 내부 변수)
+	std::vector<std::pair<int, int>> stack;
+	// 방향 정의 (2칸씩 점프하는 방식 사용)
+	// 이 방식은 홀수 인덱스의 셀에서 홀수 인덱스의 셀로 이동하며 벽을 허뭅니다.
+	int dx[] = { 0, 2, 0, -2 };
+	int dy[] = { -2, 0, 2, 0 };
+	// 시작점을 설정
+	int start_x = 1; int start_y = 1;
+	Maze[start_y][start_x].is_way = true;
 	visited[start_y][start_x] = true;
 	stack.push_back({ start_x, start_y });
-
-	// 시작 위치 (1, 1)를 길로 설정
-	Maze[start_y][start_x].is_way = true;
-
+	// 스택이 빌 때까지 반복
 	while (!stack.empty()) {
+		// 현재 위치
 		int current_x = stack.back().first;
 		int current_y = stack.back().second;
-
 		// 현재 셀에서 방문하지 않은 이웃들 찾기
 		std::vector<int> unvisited_neighbors;
 		for (int dir = 0; dir < 4; dir++) {
 			int next_x = current_x + dx[dir];
 			int next_y = current_y + dy[dir];
-
 			// 경계 내에 있고 (0과 rows-1 사이), 아직 방문하지 않은 셀인 경우
+			// 가장자리를 남겨두어 벽으로 사용
 			if (next_x > 0 && next_x < cols - 1 &&
-				next_y > 0 && next_y < rows - 1 && // 가장자리(0, 24)를 남겨두어 벽으로 사용
-				!visited[next_y][next_x]) {
-				unvisited_neighbors.push_back(dir);
-			}
+				next_y > 0 && next_y < rows - 1 &&
+				!visited[next_y][next_x]) unvisited_neighbors.push_back(dir);
 		}
-
+		// 방문하지 않은 이웃이 있으면
 		if (!unvisited_neighbors.empty()) {
 			// 랜덤하게 방향 선택
 			std::uniform_int_distribution<int> rand_dir(0, static_cast<int>(unvisited_neighbors.size()) - 1);
 			int chosen_dir = unvisited_neighbors[rand_dir(gen)];
-
+			// --- 셀 사이의 벽 허물기 ---
 			int next_x = current_x + dx[chosen_dir];
 			int next_y = current_y + dy[chosen_dir];
-
-			// --- [수정 2] 셀 사이의 벽 허물기 (1칸 이동) ---
+			Maze[next_y][next_x].is_way = true;
 			int wall_row = current_y + dy[chosen_dir] / 2;
 			int wall_col = current_x + dx[chosen_dir] / 2;
 			Maze[wall_row][wall_col].is_way = true;
-
-			// 다음 셀을 길로 설정
-			Maze[next_y][next_x].is_way = true;
-
 			// 다음 셀을 방문 표시하고 스택에 추가
 			visited[next_y][next_x] = true;
 			stack.push_back({ next_x, next_y });
 		}
-		else {
-			// 막다른 길이면 백트래킹
-			stack.pop_back();
-		}
+		// 막다른 길이면 백트래킹
+		else stack.pop_back();
 	}
-
-	// 행이 짝수일 경우 (예: 24x25), 마지막 행(rows-1)의 벽을 길로 만듭니다.
+	// 행이 짝수일 경우 마지막 행(rows-1)의 벽을 길로 만듭니다.
 	if (rows % 2 == 0 && rows > 0) {
 		for (int j = 0; j < cols; ++j) {
-			// 마지막 행의 모든 셀을 길로 설정하여 가장자리를 제거
 			Maze[rows - 1][j].is_way = true;
 		}
 	}
-	// 열이 짝수일 경우 (예: 25x24), 마지막 열(cols-1)의 벽을 길로 만듭니다.
+	// 열이 짝수일 경우 마지막 열(cols-1)의 벽을 길로 만듭니다.
 	if (cols % 2 == 0 && cols > 0) {
 		for (int i = 0; i < rows; ++i) {
-			// 마지막 열의 모든 셀을 길로 설정하여 가장자리를 제거
 			Maze[i][cols - 1].is_way = true;
 		}
 	}
-
-	// 끝점 (0, 0) 길로 설정 및 출구 열기 (0, 1) 또는 (1, 0)
-	Maze[0][0].is_way = true;
-	Maze[1][0].is_way = true;
-
-	// 시작점 (24, 24)를 길로 설정 및 출구 열기 (23, 24) 또는 (24, 23)
-	Maze[rows - 1][cols - 1].is_way = true; // (24, 24)
-	Maze[rows - 2][cols - 1].is_way = true; // (23, 24)
+	// 출구 설정
+	Maze[rows - 1][cols - 1].is_way = true;
+	Maze[rows - 1][cols - 2].is_way = true;
+	Maze[rows - 2][cols - 2].is_way = true;
+	Maze[rows - 2][cols - 3].is_way = true;	
 }
 
 // 로봇 생성 함수
@@ -507,7 +498,6 @@ void Create_Robot() {
 	Create_Cube(robot[4], 0.05f, 0.3f, 0.05f); // 왼다리
 	Create_Cube(robot[5], 0.05f, 0.3f, 0.05f); // 오른다리
 	Create_Cube(robot[6], 0.02f, 0.05f, 0.02f); // 코
-	
 	// 위치 설정
 	robot[0].position = glm::vec3(0.0f, 1.35f, 0.0f); // 머리
 	robot[1].position = glm::vec3(0.0f, 0.85f, 0.0f); // 몸통
@@ -516,7 +506,6 @@ void Create_Robot() {
 	robot[4].position = glm::vec3(-0.1f, 0.3f, 0.0f); // 왼다리
 	robot[5].position = glm::vec3(0.1f, 0.3f, 0.0f); // 오른다리
 	robot[6].position = glm::vec3(0.0f, 1.3f, 0.1f); // 코
-	
 	// 색상 설정
 	for (int i = 0; i < 7; i++) {
 		robot[i].colors.clear();
@@ -618,7 +607,7 @@ void main(int argc, char** argv) {
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowPosition(100, 100);
 	glutInitWindowSize(width, height);
-	glutCreateWindow("Example20");
+	glutCreateWindow("25_숙제");
 	//--- GLEW 초기화하기
 	glewExperimental = GL_TRUE;
 	glewInit();
@@ -628,6 +617,7 @@ void main(int argc, char** argv) {
 	shaderProgramID = make_shaderProgram();
 	//--- 콜백 함수 등록
 	Create_Wall(); // 벽 생성
+	Create_Cube(box, 0.3f, 0.0f, 0.3f); // 박스 생성
 	menu(); // 메뉴 목록
 	glutTimerFunc(50, TimerFunction, 1); // 타이머 함수 등록
 	glutDisplayFunc(drawScene); // 출력 함수의 지정
@@ -678,7 +668,7 @@ GLvoid drawScene() //--- 콜백 함수: 그리기 콜백 함수
 
 	// 미로 크기에 맞춘 직각 투영 행렬
 	float maze_rows = static_cast<float>(Maze.size());
-	float maze_cols = Maze.empty() ? 1.0f : static_cast<float>(Maze[0].size());
+	float maze_cols = static_cast<float>(Maze[0].size());
 	float max_dimension = std::max(maze_rows, maze_cols);
 	float view_range = (max_dimension + 2.0f) / 2.0f; // 미로 전체가 보이도록 여유 공간 추가
 
@@ -690,8 +680,14 @@ GLvoid drawScene() //--- 콜백 함수: 그리기 콜백 함수
 	glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
 	// 벽 그리기
 	Draw_Wall(transformLocation);
-	// 로봇 그리기
-	if (robot_on) Draw_Robot(transformLocation);
+	// 미니맵에 표시
+	if (robot_on) {
+		glm::mat4 model = glm::mat4(1.0f);
+		model = robot_movement * model;
+		glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(model));
+		glBindVertexArray(box.VAO);
+		glDrawElements(GL_TRIANGLES, box.index.size(), GL_UNSIGNED_INT, 0);
+	}
 
 	glutSwapBuffers();
 }
@@ -703,93 +699,68 @@ GLvoid Reshape(int w, int h) {
 
 // 키보드 콜백 함수
 GLvoid Keyboard(unsigned char key, int x, int y) {
-	switch (key) {
+	if (robot_on) {
+		// 로봇 속도 증가
+		if (key == '+') if (robot_speed < 0.1f) robot_speed += 0.01f; 
+		// 로봇 속도 감소
+		else if (key == '-') if (robot_speed > 0.01f) robot_speed -= 0.01f;
+		// 1인칭 시점
+		else if (key == '1');
+		// 3인칭 시점
+		else if (key == '3');
+	}
+	else {
 		// 직각 투영
-		case 'o':
-			camera.projection = false;
-			break;
+		if (key == 'o') camera.projection = false;
 		// 원근 투영
-		case 'p':
-			camera.projection = true;
-			break;
-		// 카메라 z축 이동
-		case 'z': 
-			camera.eye.z -= 0.1f;
-			break;
-		case 'Z':
-			camera.eye.z += 0.1f;
-			break;
-		// 육면체 애니메이션
-		case 'm':
-			wall_animation = true;
-			break;
-		case 'M':
-			wall_animation = false;
-			break;
-		// 카메라 y축 공전
-		case 'y':
-			Camera_Rotate(1.0f);
-			break;
-		case 'Y':
-			Camera_Rotate(-1.0f);
-			break;
-		// 미로 생성
-		case 'r':
+		else if (key == 'p') camera.projection = true;
+		// 카메라 z축 앞으로 이동
+		else if (key == 'z') camera.eye.z -= 0.1f;
+		// 카메라 z축 뒤로 이동
+		else if (key == 'Z') camera.eye.z += 0.1f;
+		// 카메라 바닥 기준 y축 양 회전
+		else if (key == 'y') Camera_Rotate(5.0f);
+		// 카메라 바닥 기준 y축 음 회전
+		else if (key == 'Y') Camera_Rotate(-5.0f);
+		// 미로생성
+		else if (key == 'r') {
 			if (create_maze) {
 				Create_Maze();
 				create_maze = false;
 			}
-			break;
-		// 육면체 낮은높이로 고정
-		case 'v':
-			wall_animation = false;
-			for (int i = 0; i < Maze.size(); i++) {
-				for (int j = 0; j < Maze[i].size(); j++) {
-					Maze[i][j].position.y = Maze[i][j].min_height;
-					Create_Cube(Maze[i][j], 0.5f, Maze[i][j].min_height, 0.5f);
-				}
-			}
-			break;
+		}
 		// 로봇 생성
-		case 's':
-			Create_Robot();
-			robot_on = true;
-			/*float start_x = start_col - cols / 2.0f;
-			float start_z = start_row - rows / 2.0f;
-			robot_movement = glm::translate(glm::mat4(1.0f), glm::vec3(start_x, 0.0f, start_z));*/
-			break; 
-		// 로봇 속도 조절
-		case '+':
-			if (robot_on) {
-				if (robot_speed < 0.1f) robot_speed += 0.01f;
+		if (!create_maze) {
+			if (key == 's') {
+				Create_Robot();
+				robot_on = true;
 			}
-			break;
-		case '-':
-			if (robot_on) {
-				if (robot_speed > 0.01f) robot_speed -= 0.01f;
-			}
-			break;
-		// 카메라 시점 변경
-		case '1':
-			if (robot_on) {
-			
-			}
-			break;
-		case '3':
-			if (robot_on) {
-			
-			}
-			break;
-		// 초기화
-		case 'c':
-			Create_Robot();
-			robot_on = false;
-			break;
-		// 종료
-		case 'q':
-			exit(0);
-			break;
+		}
 	}
+	// 육면체 위아래 애니메이션
+	if (key == 'm') wall_animation = true;
+	// 육면체 애니메이션 정지
+	else if (key == 'M') wall_animation = false;
+	// 육면체 낮은높이로 고정
+	else if (key == 'v') {
+		wall_animation = false;
+		for (int i = 0; i < Maze.size(); i++) {
+			for (int j = 0; j < Maze[i].size(); j++) {
+				Maze[i][j].position.y = Maze[i][j].min_height;
+				Create_Cube(Maze[i][j], 0.5f, Maze[i][j].min_height, 0.5f);
+			}
+		}
+	}
+	// 초기화
+	else if (key == 'c') {
+		camera.projection = true;
+		wall_animation = false;
+		create_maze = true;
+		robot_on = false;
+	}
+	// 종료
+	else if (key == 'q') exit(0);
+	
 	glutPostRedisplay();
 }
 
