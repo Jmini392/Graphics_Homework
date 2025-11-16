@@ -252,7 +252,7 @@ void menu() {
 	std::cout << "v: 육면체 낮은높이로 고정" << std::endl;
 	std::cout << "s: 로봇 생성" << std::endl;
 	std::cout << "방향키: 로봇 이동" << std::endl;
-	std::cout << "+/-: 로봇 속도 조절" << std::endl;
+	std::cout << "+/-: 육면체 애니메이션 속도 조절" << std::endl;
 	std::cout << "1/3: 카메라 시점 변경" << std::endl;
 	std::cout << "c: 초기화" << std::endl;
 	std::cout << "q: 종료" << std::endl;
@@ -784,16 +784,8 @@ GLvoid Reshape(int w, int h) {
 GLvoid Keyboard(unsigned char key, int x, int y) {
 	if (!start) {
 		if (robot_on) {
-			// 로봇 속도 증가
-			if (key == '+') {
-				if (robot_speed < 0.1f) robot_speed += 0.01f;
-			}
-			// 로봇 속도 감소
-			else if (key == '-') {
-				if (robot_speed > 0.01f) robot_speed -= 0.01f;
-			}
 			// 1인칭 시점
-			else if (key == '1') {
+			if (key == '1') {
 				camera.lookat = true;
 				std::cout << "카메라 시점이 1인칭으로 변경되었습니다." << std::endl;
 			}
@@ -808,14 +800,16 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
 			if (key == 'o') camera.projection = false;
 			// 원근 투영
 			else if (key == 'p') camera.projection = true;
-			// 카메라 z축 앞으로 이동
-			else if (key == 'z') camera.eye.z -= 0.1f;
-			// 카메라 z축 뒤로 이동
-			else if (key == 'Z') camera.eye.z += 0.1f;
-			// 카메라 바닥 기준 y축 양 회전
-			else if (key == 'y') Camera_Rotate(5.0f);
-			// 카메라 바닥 기준 y축 음 회전
-			else if (key == 'Y') Camera_Rotate(-5.0f);
+			if (camera.projection) {
+				// 카메라 z축 앞으로 이동
+				if (key == 'z') camera.eye.z -= 0.1f;
+				// 카메라 z축 뒤로 이동
+				else if (key == 'Z') camera.eye.z += 0.1f;
+				// 카메라 바닥 기준 y축 양 회전
+				else if (key == 'y') Camera_Rotate(5.0f);
+				// 카메라 바닥 기준 y축 음 회전
+				else if (key == 'Y') Camera_Rotate(-5.0f);
+			}
 			// 미로생성
 			else if (key == 'r') {
 				if (create_maze) {
@@ -839,11 +833,32 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
 		else if (key == 'M') wall_animation = false;
 		// 육면체 낮은높이로 고정
 		else if (key == 'v') {
-			wall_animation = false;
+			if (wall_animation) {
+				wall_animation = false;
+				for (int i = 0; i < Maze.size(); i++) {
+					for (int j = 0; j < Maze[i].size(); j++) {
+						Maze[i][j].position.y = Maze[i][j].min_height;
+						Create_Cube(Maze[i][j], 0.5f, Maze[i][j].min_height, 0.5f);
+					}
+				}
+			}
+			else wall_animation = true;
+		}
+		// 육면체 애니메이샨 속도 증가
+		else if (key == '+') {
 			for (int i = 0; i < Maze.size(); i++) {
 				for (int j = 0; j < Maze[i].size(); j++) {
-					Maze[i][j].position.y = Maze[i][j].min_height;
-					Create_Cube(Maze[i][j], 0.5f, Maze[i][j].min_height, 0.5f);
+					Maze[i][j].speed += 0.01f;
+					if (Maze[i][j].speed > 0.2f) Maze[i][j].speed = 0.2f;
+				}
+			}
+		}
+		// 육면체 애니메이션 속도 감소
+		else if (key == '-') {
+			for (int i = 0; i < Maze.size(); i++) {
+				for (int j = 0; j < Maze[i].size(); j++) {
+					Maze[i][j].speed -= 0.01f;
+					if (Maze[i][j].speed < 0.01f) Maze[i][j].speed = 0.01f;
 				}
 			}
 		}
@@ -855,6 +870,8 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
 					Maze[i][j].is_way = false;
 					Maze[i][j].position.y = Maze[i][j].max_height;
 					Create_Cube(Maze[i][j], 0.5f, Maze[i][j].max_height, 0.5f);
+					Maze[i][j].direction = true;
+					Maze[i][j].speed = speed(gen);
 				}
 			}
 			wall_animation = false;
