@@ -39,12 +39,13 @@ struct Shape {
 	GLuint VAO, VBO[2], EBO;
 };
 Shape robot[7]; // 0 머리, 1 몸통, 2 왼팔, 3 오른팔, 4 왼다리, 5 오른다리, 6 코
-Shape box; // 로봇 미니맵 위치 상자
+Shape box;
 glm::mat4 robot_animation[2]; glm::mat4 robot_movement;
 bool movemotion; bool robot_rotate = true;
 float robot_speed = 0.05f; bool robot_on = false;
 std::vector<std::vector<Shape>> Maze;
 bool wall_animation; bool create_maze = true;
+bool start = false;
 
 // 카메라
 struct Camera {
@@ -52,6 +53,7 @@ struct Camera {
 	glm::vec3 at;
 	glm::vec3 up;
 	bool projection = true; // true: 원근, false: 직각
+	bool lookat = false; // true: 로봇 1인칭 시점, false: 로봇 3인칭 시점 
 } camera = { glm::vec3(0.0f, 10.0f, 23.0f),
 			 glm::vec3(0.0f, 0.0f, 0.0f),
 			 glm::vec3(0.0f, 1.0f, 0.0f) };
@@ -70,6 +72,7 @@ void InitBuffers(Shape& shape);
 void Create_Cube(Shape& cube, float x, float y, float z);
 // 미로 관련 함수
 void Create_Wall();
+void Start_Wall_Animation();
 void Draw_Wall(unsigned int transformLocation);
 void Wall_Animation();
 void Create_Maze();
@@ -77,8 +80,10 @@ void Create_Maze();
 void Create_Robot();
 void Draw_Robot(unsigned int transformLocation);
 void Robot_Animation();
-void Robot_Turn(float angle);
-bool Robot_collision();
+bool Robot_collision(glm::vec3 next_position);
+// 카메라 업데이트 함수
+void Update_Camera();
+void Camera_Rotate(float angle);
 // 충돌 검사 함수
 bool AABB(glm::vec3 pos1, float size1, glm::vec3 pos2, float size2) { // 충돌 검사 함수
 	return (pos1.x - size1 <= pos2.x + size2 && pos1.x + size1 >= pos2.x - size2 &&
@@ -99,6 +104,46 @@ void Camera_Rotate(float angle) {
 
 	camera.eye.x = new_eye_x;
 	camera.eye.z = new_eye_z;
+}
+
+// 카메라 업데이트 함수
+void Update_Camera() {
+	if (robot_on) {
+		if (camera.lookat) {
+			// === 1인칭 시점 개선 ===
+			// 로봇의 현재 위치 계산
+			glm::vec3 robot_pos = glm::vec3(robot_movement[3][0], robot_movement[3][1], robot_movement[3][2]);
+			
+			// 로봇의 방향 벡터 계산 (로봇이 바라보는 방향)
+			glm::vec4 forward_vec = robot_movement * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+			glm::vec3 forward = glm::normalize(glm::vec3(forward_vec.x, 0.0f, forward_vec.z));
+			
+			// 카메라를 로봇의 눈 높이에 위치 (머리보다 약간 낮게)
+			glm::vec3 eye_position = robot_pos + glm::vec3(0.0f, 1.2f, 0.0f);
+			
+			// 벽과의 충돌을 고려하여 카메라 위치 미세 조정
+			// 로봇의 코 앞쪽으로 약간 이동시켜 벽에 너무 가깝지 않게 함
+			eye_position = eye_position + forward * 0.1f;
+			
+			// 시야 방향 설정 (로봇이 바라보는 방향으로 더 멀리)
+			glm::vec3 look_direction = eye_position + forward * 10.0f;
+			
+			camera.eye = eye_position;
+			camera.at = look_direction;
+			camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
+		}
+		else {
+			// === 3인칭 시점 (기존 코드 개선) ===
+			glm::vec3 robot_pos = glm::vec3(robot_movement[3][0], robot_movement[3][1], robot_movement[3][2]);
+			glm::vec4 forward_vec = robot_movement * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+			glm::vec3 forward = glm::normalize(glm::vec3(forward_vec.x, 0.0f, forward_vec.z));
+			
+			// 카메라를 더 높이, 더 멀리 위치시키고, 위에서 내려다보는 각도로 조정
+			camera.eye = robot_pos - forward * 5.0f + glm::vec3(0.0f, 6.0f, 0.0f);
+			camera.at = robot_pos + glm::vec3(0.0f, 1.0f, 0.0f);
+			camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
+		}
+	}
 }
 
 // 파일 읽기 함수
@@ -354,12 +399,39 @@ void Create_Wall() {
 			Maze[i][j].max_height = high(gen);
 			Maze[i][j].min_height = low(gen);
 			Maze[i][j].speed = speed(gen);
-			Maze[i][j].position = glm::vec3(j - col / 2.0f, Maze[i][j].max_height, i - row / 2.0f);
-			Create_Cube(Maze[i][j], 0.5f, Maze[i][j].max_height, 0.5f);
-			Maze[i][j].direction = false;
+			Maze[i][j].position = glm::vec3(j - col / 2.0f, 0.0f, i - row / 2.0f);
+			Create_Cube(Maze[i][j], 0.5f, 0.0f, 0.5f);
+			Maze[i][j].direction = true;
 		}
 	}
-	std::cout << "생성되었습니다." << std::endl;
+	start = true;
+}
+
+// 벽 생성 애니메이션 함수
+void Start_Wall_Animation() {
+	for (int i = 0; i < Maze.size(); i++) {
+		for (int j = 0; j < Maze[i].size(); j++) {
+			float current_height = Maze[i][j].position.y;
+			if (Maze[i][j].direction) {
+				current_height += Maze[i][j].speed;
+				if (current_height > Maze[i][j].max_height) {
+					current_height = Maze[i][j].max_height;
+					Maze[i][j].direction = false;
+				}
+			}
+			// y 위치 업데이트
+			Maze[i][j].position.y = current_height;
+			Create_Cube(Maze[i][j], 0.5f, current_height, 0.5f);
+		}
+	}
+	for (int i = 0; i < Maze.size(); i++) {
+		for (int j = 0; j < Maze[i].size(); j++) {
+			if (Maze[i][j].direction) return; // 아직 애니메이션 중인 벽이 있음 
+		}
+	}
+	std::cout << "미로가 생성되었습니다." << std::endl;
+	menu(); // 메뉴 목록 출력
+	start = false;
 }
 
 // 벽 그리기 함수
@@ -488,7 +560,11 @@ void Create_Robot() {
 	// 로봇 애니메이션 초기화
 	robot_animation[0] = glm::mat4(1.0f);
 	robot_animation[1] = glm::mat4(1.0f);
+
+	// 로봇 초기 위치 설정
 	robot_movement = glm::mat4(1.0f);
+	robot_movement = glm::translate(glm::mat4(1.0f), glm::vec3(Maze[0][0].position.x, 0.0f, Maze[0][0].position.z));
+	
 	movemotion = false;
 	// 로봇 부위별 생성
 	Create_Cube(robot[0], 0.1f, 0.1f, 0.1f); // 머리
@@ -548,6 +624,7 @@ void Create_Robot() {
 // 로봇 그리기 함수
 void Draw_Robot(unsigned int transformLocation) {
 	for (int i = 0; i < 7; i++) {
+		if (camera.lookat) continue; // 로봇 시점일 때 그리지 않음
 		glm::mat4 model = glm::mat4(1.0f);
 		model = robot_movement * model;
 		model = glm::translate(model, robot[i].position);
@@ -586,17 +663,14 @@ void Robot_Animation() {
 		glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.3f, 0.0f));
 }
 
-// 로봇 회전 함수
-void Robot_Turn(float angle) {
-	glm::vec3 robot_pos = glm::vec3(robot_movement[3][0], robot_movement[3][1], robot_movement[3][2]);
-	robot_movement = glm::translate(glm::mat4(1.0f), robot_pos) * 
-					 glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
-}
-
 // 로봇 충돌 검사 함수
-bool Robot_collision() {
-	glm::vec3 robot_pos = glm::vec3(robot_movement[3][0], robot_movement[3][1], robot_movement[3][2]);
-	static glm::vec3 next_pos = robot_pos + glm::vec3(robot_movement * glm::vec4(0.0f, 0.0f, robot_speed, 1.0f));
+bool Robot_collision(glm::vec3 next_position) {
+    for (int i = 0; i < static_cast<int>(Maze.size()); i++) {
+        for (int j = 0; j < static_cast<int>(Maze[0].size()); j++) {
+            if (Maze[i][j].is_way) continue;
+			if (AABB(next_position, 0.2f, Maze[i][j].position, 0.5f)) return false; // 충돌 발생
+        }
+    }
 	return true;
 }
 
@@ -617,8 +691,6 @@ void main(int argc, char** argv) {
 	shaderProgramID = make_shaderProgram();
 	//--- 콜백 함수 등록
 	Create_Wall(); // 벽 생성
-	Create_Cube(box, 0.3f, 0.0f, 0.3f); // 박스 생성
-	menu(); // 메뉴 목록
 	glutTimerFunc(50, TimerFunction, 1); // 타이머 함수 등록
 	glutDisplayFunc(drawScene); // 출력 함수의 지정
 	glutReshapeFunc(Reshape); // 다시 그리기 함수 지정
@@ -662,32 +734,43 @@ GLvoid drawScene() //--- 콜백 함수: 그리기 콜백 함수
 	if (robot_on) Draw_Robot(transformLocation);
 
 	// ========== 미니맵 ==========
-	// 미니맵 뷰포트 (크기를 줄임)
-	int minimap_size = std::min(width, height) / 4; // 화면 크기의 1/4로 설정
-	glViewport(width - minimap_size - 10, height - minimap_size - 10, minimap_size, minimap_size);
-
+	// 깊이 테스트를 잠시 비활성화하여 미니맵이 항상 보이도록 함
+	glDisable(GL_DEPTH_TEST);
+	// 미니맵 뷰포트 설정
+	int minimap_size = std::min(width, height) / 4;
+	// 여백을 충분히 두어 화면 경계와 겹치지 않도록 함
+	int margin = 15;
+	glViewport(width - minimap_size - margin, height - minimap_size - margin, minimap_size, minimap_size);
 	// 미로 크기에 맞춘 직각 투영 행렬
 	float maze_rows = static_cast<float>(Maze.size());
 	float maze_cols = static_cast<float>(Maze[0].size());
 	float max_dimension = std::max(maze_rows, maze_cols);
 	float view_range = (max_dimension + 2.0f) / 2.0f; // 미로 전체가 보이도록 여유 공간 추가
-
-	projection = glm::ortho(-view_range, view_range, -view_range, view_range, -10.0f, 10.0f);
-	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projection));
-
-	// 뷰 행렬
-	view = glm::lookAt(glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f));
-	glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
+	// 미니맵용 투영 행렬 (항상 직각 투영)
+	glm::mat4 minimap_projection = glm::ortho(-view_range, view_range, -view_range, view_range, -10.0f, 10.0f);
+	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(minimap_projection));
+	// 미니맵용 뷰 행렬 (위에서 내려다보는 시점으로 고정)
+	glm::mat4 minimap_view = glm::lookAt(
+		glm::vec3(0.0f, 5.0f, 0.0f),   // 카메라 위치 (위쪽에서)
+		glm::vec3(0.0f, 0.0f, 0.0f),   // 바라보는 지점 (미로 중심)
+		glm::vec3(0.0f, 0.0f, -1.0f)   // 업 벡터
+	);
+	glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(minimap_view));
+	// 미니맵 배경
+	glClearDepth(1.0f);
 	// 벽 그리기
 	Draw_Wall(transformLocation);
-	// 미니맵에 표시
+	// 로봇 위치 표시 
 	if (robot_on) {
-		glm::mat4 model = glm::mat4(1.0f);
-		model = robot_movement * model;
-		glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(model));
+		glm::mat4 robot_minimap_model = glm::mat4(1.0f);
+		robot_minimap_model = robot_movement * robot_minimap_model;
+		robot_minimap_model = glm::scale(robot_minimap_model, glm::vec3(1.5f, 1.0f, 1.5f));
+		glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(robot_minimap_model));
 		glBindVertexArray(box.VAO);
 		glDrawElements(GL_TRIANGLES, box.index.size(), GL_UNSIGNED_INT, 0);
 	}
+	// 깊이 테스트 다시 활성화
+	glEnable(GL_DEPTH_TEST);
 
 	glutSwapBuffers();
 }
@@ -699,67 +782,95 @@ GLvoid Reshape(int w, int h) {
 
 // 키보드 콜백 함수
 GLvoid Keyboard(unsigned char key, int x, int y) {
-	if (robot_on) {
-		// 로봇 속도 증가
-		if (key == '+') if (robot_speed < 0.1f) robot_speed += 0.01f; 
-		// 로봇 속도 감소
-		else if (key == '-') if (robot_speed > 0.01f) robot_speed -= 0.01f;
-		// 1인칭 시점
-		else if (key == '1');
-		// 3인칭 시점
-		else if (key == '3');
-	}
-	else {
-		// 직각 투영
-		if (key == 'o') camera.projection = false;
-		// 원근 투영
-		else if (key == 'p') camera.projection = true;
-		// 카메라 z축 앞으로 이동
-		else if (key == 'z') camera.eye.z -= 0.1f;
-		// 카메라 z축 뒤로 이동
-		else if (key == 'Z') camera.eye.z += 0.1f;
-		// 카메라 바닥 기준 y축 양 회전
-		else if (key == 'y') Camera_Rotate(5.0f);
-		// 카메라 바닥 기준 y축 음 회전
-		else if (key == 'Y') Camera_Rotate(-5.0f);
-		// 미로생성
-		else if (key == 'r') {
-			if (create_maze) {
-				Create_Maze();
-				create_maze = false;
+	if (!start) {
+		if (robot_on) {
+			// 로봇 속도 증가
+			if (key == '+') {
+				if (robot_speed < 0.1f) robot_speed += 0.01f;
+			}
+			// 로봇 속도 감소
+			else if (key == '-') {
+				if (robot_speed > 0.01f) robot_speed -= 0.01f;
+			}
+			// 1인칭 시점
+			else if (key == '1') {
+				camera.lookat = true;
+				std::cout << "카메라 시점이 1인칭으로 변경되었습니다." << std::endl;
+			}
+			// 3인칭 시점
+			else if (key == '3') {
+				camera.lookat = false;
+				std::cout << "카메라 시점이 3인칭으로 변경되었습니다." << std::endl;
 			}
 		}
-		// 로봇 생성
-		if (!create_maze) {
-			if (key == 's') {
-				Create_Robot();
-				robot_on = true;
+		else {
+			// 직각 투영
+			if (key == 'o') camera.projection = false;
+			// 원근 투영
+			else if (key == 'p') camera.projection = true;
+			// 카메라 z축 앞으로 이동
+			else if (key == 'z') camera.eye.z -= 0.1f;
+			// 카메라 z축 뒤로 이동
+			else if (key == 'Z') camera.eye.z += 0.1f;
+			// 카메라 바닥 기준 y축 양 회전
+			else if (key == 'y') Camera_Rotate(5.0f);
+			// 카메라 바닥 기준 y축 음 회전
+			else if (key == 'Y') Camera_Rotate(-5.0f);
+			// 미로생성
+			else if (key == 'r') {
+				if (create_maze) {
+					Create_Maze();
+					create_maze = false;
+				}
+			}
+			// 로봇 생성
+			if (!create_maze) {
+				if (key == 's') {
+					Create_Robot();
+					Create_Cube(box, 0.3f, 0.0f, 0.3f);
+					camera.lookat = true;
+					robot_on = true;
+				}
 			}
 		}
-	}
-	// 육면체 위아래 애니메이션
-	if (key == 'm') wall_animation = true;
-	// 육면체 애니메이션 정지
-	else if (key == 'M') wall_animation = false;
-	// 육면체 낮은높이로 고정
-	else if (key == 'v') {
-		wall_animation = false;
-		for (int i = 0; i < Maze.size(); i++) {
-			for (int j = 0; j < Maze[i].size(); j++) {
-				Maze[i][j].position.y = Maze[i][j].min_height;
-				Create_Cube(Maze[i][j], 0.5f, Maze[i][j].min_height, 0.5f);
+		// 육면체 위아래 애니메이션
+		if (key == 'm') wall_animation = true;
+		// 육면체 애니메이션 정지
+		else if (key == 'M') wall_animation = false;
+		// 육면체 낮은높이로 고정
+		else if (key == 'v') {
+			wall_animation = false;
+			for (int i = 0; i < Maze.size(); i++) {
+				for (int j = 0; j < Maze[i].size(); j++) {
+					Maze[i][j].position.y = Maze[i][j].min_height;
+					Create_Cube(Maze[i][j], 0.5f, Maze[i][j].min_height, 0.5f);
+				}
 			}
 		}
-	}
-	// 초기화
-	else if (key == 'c') {
-		camera.projection = true;
-		wall_animation = false;
-		create_maze = true;
-		robot_on = false;
+		// 초기화
+		else if (key == 'c') {
+			// 미로 초기화
+			for (int i = 0; i < Maze.size(); i++) {
+				for (int j = 0; j < Maze[i].size(); j++) {
+					Maze[i][j].is_way = false;
+					Maze[i][j].position.y = Maze[i][j].max_height;
+					Create_Cube(Maze[i][j], 0.5f, Maze[i][j].max_height, 0.5f);
+				}
+			}
+			wall_animation = false;
+			create_maze = true;
+			// 로봇 초기화
+			robot_on = false;
+			robot_speed = 0.05f;
+			// 카메라 초기화
+			camera.eye = glm::vec3(0.0f, 10.0f, 23.0f);
+			camera.at = glm::vec3(0.0f, 0.0f, 0.0f);
+			camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
+			camera.projection = true;
+		}
 	}
 	// 종료
-	else if (key == 'q') exit(0);
+	if (key == 'q') exit(0);
 	
 	glutPostRedisplay();
 }
@@ -767,26 +878,32 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
 // 방향키 콜백 함수
 GLvoid specialKeyboard(int key, int x, int y) {
 	if (robot_on) {
-		if (robot_rotate) {
-			if (key == GLUT_KEY_UP) Robot_Turn(180.0f); // 뒤 방향
-			else if (key == GLUT_KEY_DOWN) Robot_Turn(0.0f); // 앞 방향
-			else if (key == GLUT_KEY_LEFT) Robot_Turn(-90.0f); // 왼쪽 방향
-			else if (key == GLUT_KEY_RIGHT) Robot_Turn(90.0f); // 오른쪽 방향
-			robot_rotate = false;
+		if (key == GLUT_KEY_UP) {
+			glm::vec3 robot_pos = glm::vec3(robot_movement[3][0], robot_movement[3][1], robot_movement[3][2]);
+			glm::vec3 next_pos = robot_pos + glm::vec3(glm::mat3(robot_movement) * glm::vec3(0.0f, 0.0f, robot_speed));	
+			if (Robot_collision(next_pos)) {
+				robot_movement = glm::translate(robot_movement, glm::vec3(0.0f, 0.0f, robot_speed));
+				movemotion = true;
+			}
 		}
-		if (Robot_collision()) {
-			robot_movement = glm::translate(robot_movement, glm::vec3(0.0f, 0.0f, robot_speed));
-			movemotion = true;
+		else {
+			// 회전은 충돌 검사 없이 수행
+			if (robot_rotate) {
+				robot_rotate = false;
+				if (key == GLUT_KEY_DOWN) robot_movement = glm::rotate(robot_movement, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+				else if (key == GLUT_KEY_LEFT) robot_movement = glm::rotate(robot_movement, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+				else if (key == GLUT_KEY_RIGHT) robot_movement = glm::rotate(robot_movement, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			}
 		}
-		glutPostRedisplay();
 	}
+	glutPostRedisplay();
 }
 
 // 방향키 떼기 콜백 함수
 GLvoid specialKeyboardUp(int key, int x, int y) {
 	if (key == GLUT_KEY_UP || key == GLUT_KEY_DOWN || key == GLUT_KEY_LEFT || key == GLUT_KEY_RIGHT) {
-		robot_rotate = true;
 		movemotion = false;
+		robot_rotate = true;
 		robot_animation[0] = glm::mat4(1.0f);
 		robot_animation[1] = glm::mat4(1.0f);
 	}
@@ -795,8 +912,11 @@ GLvoid specialKeyboardUp(int key, int x, int y) {
 
 // 타이머 콜백 함수
 void TimerFunction(int value) {
+	if (start) Start_Wall_Animation();
 	if (movemotion) Robot_Animation();
 	if (wall_animation) Wall_Animation();
+	Update_Camera(); // 카메라 업데이트
+	
 	glutPostRedisplay();
 	glutTimerFunc(50, TimerFunction, 1);
 }
