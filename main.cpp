@@ -39,7 +39,7 @@ struct Shape {
 	GLuint VAO, VBO[2], EBO;
 };
 Shape robot[7]; // 0 머리, 1 몸통, 2 왼팔, 3 오른팔, 4 왼다리, 5 오른다리, 6 코
-Shape box;
+Shape box; Shape ground;
 glm::mat4 robot_animation[2]; glm::mat4 robot_movement;
 bool movemotion; bool robot_rotate = true;
 float robot_speed = 0.05f; bool robot_on = false;
@@ -393,6 +393,9 @@ void Create_Wall() {
 	Maze.clear();
 	Maze.resize(row, std::vector<Shape>(col));
 
+	// 땅 생성
+	Create_Cube(ground, col / 2.0f, 0.0f, row / 2.0f);
+
 	// 벽 생성
 	for (int i = 0; i < row; i++) {
 		for (int j = 0; j < col; j++) {
@@ -728,6 +731,11 @@ GLvoid drawScene() //--- 콜백 함수: 그리기 콜백 함수
 	// 뷰 행렬
 	glm::mat4 view = glm::lookAt(camera.eye, camera.at, camera.up);
 	glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
+	// 땅 그리기
+	glm::mat4 ground_model = glm::mat4(1.0f);
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(ground_model));
+	glBindVertexArray(ground.VAO);
+	glDrawElements(GL_TRIANGLES, ground.index.size(), GL_UNSIGNED_INT, 0);
 	// 벽 그리기
 	Draw_Wall(transformLocation);
 	// 로봇 그리기
@@ -811,7 +819,7 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
 				else if (key == 'Y') Camera_Rotate(-5.0f);
 			}
 			// 미로생성
-			else if (key == 'r') {
+			if (key == 'r') {
 				if (create_maze) {
 					Create_Maze();
 					create_maze = false;
